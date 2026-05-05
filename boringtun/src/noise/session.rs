@@ -5,10 +5,10 @@ use super::PacketData;
 use crate::noise::errors::WireGuardError;
 #[cfg(feature = "ariel-os")]
 use ariel_os_lock::RawMutex;
-use core::sync::atomic::{AtomicUsize, Ordering};
 use lock_api::Mutex;
 #[cfg(feature = "std")]
 use parking_lot::RawMutex;
+use portable_atomic::{AtomicU64, Ordering};
 use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, CHACHA20_POLY1305};
 
 pub struct Session {
@@ -16,7 +16,7 @@ pub struct Session {
     sending_index: u32,
     receiver: LessSafeKey,
     sender: LessSafeKey,
-    sending_key_counter: AtomicUsize,
+    sending_key_counter: AtomicU64,
     receiving_key_counter: Mutex<RawMutex, ReceivingKeyCounterValidator>,
 }
 
@@ -169,7 +169,7 @@ impl Session {
                 UnboundKey::new(&CHACHA20_POLY1305, &receiving_key).unwrap(),
             ),
             sender: LessSafeKey::new(UnboundKey::new(&CHACHA20_POLY1305, &sending_key).unwrap()),
-            sending_key_counter: AtomicUsize::new(0),
+            sending_key_counter: AtomicU64::new(0),
             receiving_key_counter: Mutex::new(Default::default()),
         }
     }

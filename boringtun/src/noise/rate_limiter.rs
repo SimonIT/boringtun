@@ -4,7 +4,7 @@ use crate::noise::{HandshakeInit, HandshakeResponse, Packet, Tunn, TunnResult, W
 
 use core::convert::TryFrom;
 use core::net::IpAddr;
-use core::sync::atomic::{AtomicUsize, Ordering};
+use portable_atomic::{AtomicU64, Ordering};
 
 use crate::sleepyinstant::{ClockUnit, Instant};
 
@@ -45,12 +45,12 @@ pub struct RateLimiter {
     secret_key: [u8; 16],
     start_time: Instant,
     /// A single usize bit counter (should suffice for many years)
-    nonce_ctr: AtomicUsize,
+    nonce_ctr: AtomicU64,
     mac1_key: [u8; 32],
     cookie_key: Key,
     limit: u64,
     /// The counter since last reset
-    count: AtomicUsize,
+    count: AtomicU64,
     /// The time last reset was performed on this rate limiter
     last_reset: Mutex<RawMutex, Instant>,
 }
@@ -63,11 +63,11 @@ impl RateLimiter {
             nonce_key: Self::rand_bytes(),
             secret_key,
             start_time: Instant::now(),
-            nonce_ctr: AtomicUsize::new(0),
+            nonce_ctr: AtomicU64::new(0),
             mac1_key: b2s_hash(LABEL_MAC1, public_key.as_bytes()),
             cookie_key: b2s_hash(LABEL_COOKIE, public_key.as_bytes()).into(),
             limit,
-            count: AtomicUsize::new(0),
+            count: AtomicU64::new(0),
             last_reset: Mutex::new(Instant::now()),
         }
     }
@@ -119,7 +119,7 @@ impl RateLimiter {
     }
 
     fn is_under_load(&self) -> bool {
-        self.count.fetch_add(1, Ordering::SeqCst) >= self.limit as usize
+        self.count.fetch_add(1, Ordering::SeqCst) >= self.limit
     }
 
     pub(crate) fn format_cookie_reply<'a>(
