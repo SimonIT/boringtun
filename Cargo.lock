@@ -265,7 +265,7 @@ dependencies = [
  "ring",
  "socket2",
  "std-embedded-time",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tracing",
  "tracing-subscriber",
  "untrusted",
@@ -283,12 +283,6 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
 ]
-
-[[package]]
-name = "boxfnonce"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5988cb1d626264ac94100be357308f29ff7cbdd3b36bda27f450a4ee3f713426"
 
 [[package]]
 name = "bumpalo"
@@ -670,11 +664,10 @@ dependencies = [
 
 [[package]]
 name = "daemonize"
-version = "0.4.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70c24513e34f53b640819f0ac9f705b673fcf4006d7aab8778bee72ebfc89815"
+checksum = "ab8bfdaacb3c887a54d41bdf48d3af8873b3f5566469f8ba21b92057509f116e"
 dependencies = [
- "boxfnonce",
  "libc",
 ]
 
