@@ -5,17 +5,17 @@
 use embedded_time::duration::Generic;
 use embedded_time::Clock;
 #[cfg(all(windows, not(feature = "ariel-os")))]
-use std_embedded_time::StandardClock as ClockImpl;
+pub(crate) use std_embedded_time::StandardClock as ClockImpl;
 
 #[cfg(all(unix, not(feature = "ariel-os")))]
 mod unix;
 #[cfg(all(unix, not(feature = "ariel-os")))]
-use inner::UnixClock as ClockImpl;
+pub(crate) use inner::UnixClock as ClockImpl;
 #[cfg(all(unix, not(feature = "ariel-os")))]
 use unix as inner;
 
 #[cfg(feature = "ariel-os")]
-use embassy_embedded_time::EmbassyClock as ClockImpl;
+pub(crate) use embassy_embedded_time::EmbassyClock as ClockImpl;
 use once_cell::sync::Lazy;
 
 /// A measurement of a monotonically nondecreasing clock.

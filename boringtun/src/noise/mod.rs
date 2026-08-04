@@ -595,16 +595,16 @@ mod tests {
     use std::vec::Vec;
 
     use super::*;
-    use rand_core::{OsRng, TryRngCore};
+    use rand::{rngs::SysRng, TryRng};
 
     fn create_two_tuns() -> (Tunn, Tunn) {
         let my_secret_key = x25519_dalek::StaticSecret::random();
         let my_public_key = x25519_dalek::PublicKey::from(&my_secret_key);
-        let my_idx = OsRng.try_next_u32().unwrap();
+        let my_idx = SysRng.try_next_u32().unwrap();
 
         let their_secret_key = x25519_dalek::StaticSecret::random();
         let their_public_key = x25519_dalek::PublicKey::from(&their_secret_key);
-        let their_idx = OsRng.try_next_u32().unwrap();
+        let their_idx = SysRng.try_next_u32().unwrap();
 
         let my_tun = Tunn::new(my_secret_key, their_public_key, None, None, my_idx, None);
 

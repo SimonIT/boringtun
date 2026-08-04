@@ -18,7 +18,7 @@ use embedded_time::fixed_point::FixedPoint;
 use lock_api::Mutex;
 #[cfg(feature = "std")]
 use parking_lot::RawMutex;
-use rand_core::{OsRng, TryRngCore};
+use rand::{rngs::SysRng, TryRng};
 use ring::constant_time::verify_slices_are_equal;
 
 const COOKIE_REFRESH: Seconds = Seconds(128); // Use 128 and not 120 so the compiler can optimize out the division
@@ -58,7 +58,7 @@ pub struct RateLimiter {
 impl RateLimiter {
     pub fn new(public_key: &crate::x25519::PublicKey, limit: u64) -> Self {
         let mut secret_key = [0u8; 16];
-        OsRng.try_fill_bytes(&mut secret_key).unwrap();
+        SysRng.try_fill_bytes(&mut secret_key).unwrap();
         RateLimiter {
             nonce_key: Self::rand_bytes(),
             secret_key,
@@ -74,7 +74,7 @@ impl RateLimiter {
 
     fn rand_bytes() -> [u8; 32] {
         let mut key = [0u8; 32];
-        OsRng.try_fill_bytes(&mut key).unwrap();
+        SysRng.try_fill_bytes(&mut key).unwrap();
         key
     }
 
@@ -151,7 +151,7 @@ impl RateLimiter {
 
         encrypted_cookie[..16].copy_from_slice(&cookie);
         let tag = cipher
-            .encrypt_inout_detached(&iv, mac1, (&mut encrypted_cookie[..16]).into())
+            .encrypt_inout_detached(iv, mac1, (&mut encrypted_cookie[..16]).into())
             .map_err(|_| WireGuardError::DestinationBufferTooSmall)?;
 
         encrypted_cookie[16..].copy_from_slice(&tag);
