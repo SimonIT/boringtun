@@ -14,12 +14,13 @@ use chacha20poly1305::{Key, XChaCha20Poly1305};
 use embedded_time::duration::Seconds;
 use embedded_time::fixed_point::FixedPoint;
 use lock_api::Mutex;
-#[cfg(not(feature = "std"))]
-use mutex::RawMutex;
 #[cfg(feature = "std")]
 use parking_lot::RawMutex;
 use rand::{rngs::SysRng, TryRng};
 use ring::constant_time::verify_slices_are_equal;
+
+#[cfg(not(feature = "std"))]
+type RawMutex = spin::Mutex<()>;
 
 const COOKIE_REFRESH: Seconds = Seconds(128); // Use 128 and not 120 so the compiler can optimize out the division
 const COOKIE_SIZE: usize = 16;

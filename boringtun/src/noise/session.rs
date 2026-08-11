@@ -4,12 +4,13 @@
 use super::PacketData;
 use crate::noise::errors::WireGuardError;
 use lock_api::Mutex;
-#[cfg(not(feature = "std"))]
-use mutex::RawMutex;
 #[cfg(feature = "std")]
 use parking_lot::RawMutex;
 use portable_atomic::{AtomicU64, Ordering};
 use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, CHACHA20_POLY1305};
+
+#[cfg(not(feature = "std"))]
+type RawMutex = spin::Mutex<()>;
 
 pub struct Session {
     pub(crate) receiving_index: u32,
