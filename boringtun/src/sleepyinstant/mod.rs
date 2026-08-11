@@ -4,17 +4,17 @@
 
 use embedded_time::duration::Generic;
 use embedded_time::Clock;
-#[cfg(all(windows, not(feature = "ariel-os")))]
+#[cfg(all(windows, feature = "std"))]
 pub(crate) use std_embedded_time::StandardClock as ClockImpl;
 
-#[cfg(all(unix, not(feature = "ariel-os")))]
+#[cfg(all(unix, feature = "std"))]
 mod unix;
-#[cfg(all(unix, not(feature = "ariel-os")))]
+#[cfg(all(unix, feature = "std"))]
 pub(crate) use inner::UnixClock as ClockImpl;
-#[cfg(all(unix, not(feature = "ariel-os")))]
+#[cfg(all(unix, feature = "std"))]
 use unix as inner;
 
-#[cfg(feature = "ariel-os")]
+#[cfg(all(not(feature = "std"), feature = "embassy"))]
 pub(crate) use embassy_embedded_time::EmbassyClock as ClockImpl;
 use once_cell::sync::Lazy;
 

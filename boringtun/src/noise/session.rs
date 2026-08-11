@@ -3,9 +3,9 @@
 
 use super::PacketData;
 use crate::noise::errors::WireGuardError;
-#[cfg(feature = "ariel-os")]
-use ariel_os_lock::RawMutex;
 use lock_api::Mutex;
+#[cfg(not(feature = "std"))]
+use mutex::RawMutex;
 #[cfg(feature = "std")]
 use parking_lot::RawMutex;
 use portable_atomic::{AtomicU64, Ordering};

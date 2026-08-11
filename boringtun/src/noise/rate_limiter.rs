@@ -10,12 +10,12 @@ use crate::sleepyinstant::{ClockUnit, Instant};
 
 use aead::array::Array;
 use aead::{AeadInOut, KeyInit};
-#[cfg(feature = "ariel-os")]
-use ariel_os_lock::RawMutex;
 use chacha20poly1305::{Key, XChaCha20Poly1305};
 use embedded_time::duration::Seconds;
 use embedded_time::fixed_point::FixedPoint;
 use lock_api::Mutex;
+#[cfg(not(feature = "std"))]
+use mutex::RawMutex;
 #[cfg(feature = "std")]
 use parking_lot::RawMutex;
 use rand::{rngs::SysRng, TryRng};
