@@ -2,17 +2,14 @@ use super::handshake::{b2s_hash, b2s_keyed_mac_16, b2s_keyed_mac_16_2, b2s_mac_2
 use crate::noise::handshake::{LABEL_COOKIE, LABEL_MAC1};
 use crate::noise::{HandshakeInit, HandshakeResponse, Packet, Tunn, TunnResult, WireGuardError};
 
-use core::convert::TryFrom;
 use core::net::IpAddr;
 use portable_atomic::{AtomicU64, Ordering};
 
-use crate::sleepyinstant::{ClockUnit, Instant};
+use crate::sleepyinstant::{ClockDuration, Instant};
 
 use aead::array::Array;
 use aead::{AeadInOut, KeyInit};
 use chacha20poly1305::{Key, XChaCha20Poly1305};
-use embedded_time::duration::Seconds;
-use embedded_time::fixed_point::FixedPoint;
 use lock_api::Mutex;
 #[cfg(feature = "std")]
 use parking_lot::RawMutex;
@@ -22,12 +19,12 @@ use ring::constant_time::verify_slices_are_equal;
 #[cfg(not(feature = "std"))]
 type RawMutex = spin::Mutex<()>;
 
-const COOKIE_REFRESH: Seconds = Seconds(128); // Use 128 and not 120 so the compiler can optimize out the division
+const COOKIE_REFRESH: ClockDuration = ClockDuration::seconds(128); // Use 128 and not 120 so the compiler can optimize out the division
 const COOKIE_SIZE: usize = 16;
 const COOKIE_NONCE_SIZE: usize = 24;
 
 /// How often should reset count in seconds
-const RESET_PERIOD: Seconds = Seconds(1);
+const RESET_PERIOD: ClockDuration = ClockDuration::seconds(1);
 
 type Cookie = [u8; COOKIE_SIZE];
 
@@ -101,16 +98,11 @@ impl RateLimiter {
 
         // The current cookie for a given IP is the MAC(responder.changing_secret_every_two_minutes, initiator.ip_address)
         // First we derive the secret from the current time, the value of cur_counter would change with time.
-        let cur_counter =
-            Seconds::<ClockUnit>::try_from(Instant::now().duration_since(self.start_time)).unwrap()
-                / COOKIE_REFRESH.integer() as ClockUnit;
+        let cur_counter = Instant::now().duration_since(self.start_time).num_seconds()
+            / COOKIE_REFRESH.num_seconds();
 
         // Next we derive the cookie
-        b2s_keyed_mac_16_2(
-            &self.secret_key,
-            &cur_counter.integer().to_le_bytes(),
-            &addr_bytes,
-        )
+        b2s_keyed_mac_16_2(&self.secret_key, &cur_counter.to_le_bytes(), &addr_bytes)
     }
 
     fn nonce(&self) -> [u8; COOKIE_NONCE_SIZE] {

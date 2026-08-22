@@ -1,7 +1,5 @@
-use core::ops::Add;
-use embedded_time::duration::Seconds;
-use embedded_time::rate::Fraction;
-use embedded_time::{Clock, Instant};
+use crate::sleepyinstant::ClockDuration;
+use chrono::TimeDelta;
 use nix::time::{clock_gettime, ClockId};
 
 #[cfg(any(
@@ -21,18 +19,8 @@ const CLOCK_ID: ClockId = ClockId::CLOCK_MONOTONIC;
 )))]
 const CLOCK_ID: ClockId = ClockId::CLOCK_BOOTTIME;
 
-#[derive(Copy, Clone, Debug, Default)]
-pub struct UnixClock;
-
-impl Clock for UnixClock {
-    type T = u64;
-
-    const SCALING_FACTOR: Fraction = Fraction::new(1, 1_000_000_000);
-
-    fn try_now(&self) -> Result<Instant<UnixClock>, embedded_time::clock::Error> {
-        let t = clock_gettime(CLOCK_ID).unwrap();
-        let mut i = Instant::new(t.tv_nsec() as u64);
-        i = i.add(Seconds(t.tv_sec() as u64));
-        Ok(i)
-    }
+pub(super) fn now() -> ClockDuration {
+    // std::time::Instant unwraps as well, so feel safe doing so here
+    let t = clock_gettime(CLOCK_ID).unwrap();
+    TimeDelta::new(t.tv_sec(), t.tv_nsec() as u32).unwrap()
 }

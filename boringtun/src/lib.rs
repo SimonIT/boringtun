@@ -20,7 +20,7 @@ pub mod ffi;
 pub mod jni;
 pub mod noise;
 
-pub(crate) mod sleepyinstant;
+pub mod sleepyinstant;
 
 pub(crate) mod serialization;
 

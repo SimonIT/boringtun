@@ -18,15 +18,10 @@ use tracing;
 use tracing_subscriber::fmt;
 
 use crate::serialization::KeyBytes;
-use crate::sleepyinstant::{ClockImpl, ClockUnit};
 use core::ffi::CStr;
 use core::ptr;
 use core::ptr::null_mut;
 use core::slice;
-use embedded_time::duration::Seconds;
-use embedded_time::fixed_point::FixedPoint;
-use embedded_time::Clock;
-use std::convert::TryFrom;
 use std::ffi::CString;
 use std::io::{Error, ErrorKind, Write};
 use std::os::raw::c_char;
@@ -394,9 +389,7 @@ pub unsafe extern "C" fn wireguard_stats(tunnel: *const Mutex<RawMutex, Tunn>) -
     let tunnel = tunnel.as_ref().unwrap().lock();
     let (time, tx_bytes, rx_bytes, estimated_loss, estimated_rtt) = tunnel.stats();
     stats {
-        time_since_last_handshake: time
-            .map(|t| Seconds::<ClockUnit>::try_from(t).unwrap().integer() as i64)
-            .unwrap_or(-1),
+        time_since_last_handshake: time.map(|t| t.num_seconds()).unwrap_or(-1),
         tx_bytes,
         rx_bytes,
         estimated_loss,

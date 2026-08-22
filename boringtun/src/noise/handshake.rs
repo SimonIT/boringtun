@@ -4,7 +4,7 @@
 use super::{HandshakeInit, HandshakeResponse, PacketCookieReply};
 use crate::noise::errors::WireGuardError;
 use crate::noise::session::Session;
-use crate::sleepyinstant::{ClockDuration, ClockUnit, Instant, BORING_CLOCK};
+use crate::sleepyinstant::{ClockDuration, Instant};
 use crate::x25519;
 use aead::{Aead, Payload};
 use alloc::borrow::ToOwned;
@@ -12,11 +12,7 @@ use blake2::digest::consts::{U16, U24};
 use blake2::digest::{FixedOutput, KeyInit};
 use blake2::{Blake2s256, Blake2sMac, Digest};
 use chacha20poly1305::XChaCha20Poly1305;
-use core::convert::TryFrom;
 use core::convert::TryInto;
-use embedded_time::duration::{Milliseconds, Nanoseconds, Seconds};
-use embedded_time::fixed_point::FixedPoint;
-use embedded_time::Clock;
 use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, CHACHA20_POLY1305};
 
 pub(crate) const LABEL_MAC1: &[u8; 8] = b"mac1----";
@@ -176,7 +172,7 @@ impl TimeStamper {
     /// Create a new TimeStamper
     pub fn new() -> TimeStamper {
         TimeStamper {
-            duration_at_start: BORING_CLOCK.try_now().unwrap().duration_since_epoch(),
+            duration_at_start: Instant::now().duration_since_epoch(),
             instant_at_start: Instant::now(),
         }
     }
@@ -186,10 +182,8 @@ impl TimeStamper {
         const TAI64_BASE: u64 = (1u64 << 62) + 37;
         let mut ext_stamp = [0u8; 12];
         let stamp = Instant::now().duration_since(self.instant_at_start) + self.duration_at_start;
-        let secs = Seconds::<ClockUnit>::try_from(stamp).unwrap();
-        ext_stamp[0..8].copy_from_slice(&(secs.integer() + TAI64_BASE).to_be_bytes());
-        let sub = Nanoseconds::<ClockUnit>::try_from(stamp).unwrap() % Seconds(1u32);
-        ext_stamp[8..12].copy_from_slice(&(sub.integer() as u32).to_be_bytes());
+        ext_stamp[0..8].copy_from_slice(&(stamp.num_seconds() as u64 + TAI64_BASE).to_be_bytes());
+        ext_stamp[8..12].copy_from_slice(&(stamp.subsec_nanos() as u32).to_be_bytes());
         ext_stamp
     }
 }
@@ -634,8 +628,7 @@ impl Handshake {
         let temp3 = b2s_hmac2(&temp1, &temp2, &[0x02]);
 
         let rtt_time = Instant::now().duration_since(state.time_sent);
-        let millis = Milliseconds::try_from(rtt_time).unwrap();
-        self.last_rtt = Some(millis.integer());
+        self.last_rtt = Some(rtt_time.num_milliseconds() as u32);
 
         if is_previous {
             self.previous = HandshakeState::None;

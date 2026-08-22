@@ -3,20 +3,19 @@
 
 use super::errors::WireGuardError;
 use crate::noise::{Tunn, TunnResult};
+use crate::sleepyinstant::ClockDuration;
 use crate::sleepyinstant::Instant;
-use crate::sleepyinstant::{ClockDuration, ClockUnit};
 use core::mem;
 use core::ops::{Index, IndexMut};
-use embedded_time::duration::Seconds;
 
 // Some constants, represent time in seconds
 // https://www.wireguard.com/papers/wireguard.pdf#page=14
-pub(crate) const REKEY_AFTER_TIME: Seconds = Seconds(120);
-const REJECT_AFTER_TIME: Seconds = Seconds(180);
-const REKEY_ATTEMPT_TIME: Seconds = Seconds(90);
-pub(crate) const REKEY_TIMEOUT: Seconds = Seconds(5);
-const KEEPALIVE_TIMEOUT: Seconds = Seconds(10);
-const COOKIE_EXPIRATION_TIME: Seconds = Seconds(120);
+pub(crate) const REKEY_AFTER_TIME: ClockDuration = ClockDuration::seconds(120);
+const REJECT_AFTER_TIME: ClockDuration = ClockDuration::seconds(180);
+const REKEY_ATTEMPT_TIME: ClockDuration = ClockDuration::seconds(90);
+pub(crate) const REKEY_TIMEOUT: ClockDuration = ClockDuration::seconds(5);
+const KEEPALIVE_TIMEOUT: ClockDuration = ClockDuration::seconds(10);
+const COOKIE_EXPIRATION_TIME: ClockDuration = ClockDuration::seconds(120);
 
 #[derive(Debug)]
 pub enum TimerName {
@@ -286,7 +285,7 @@ impl Tunn {
                     // Persistent KEEPALIVE
                     if persistent_keepalive > 0
                         && (now - self.timers[TimePersistentKeepalive]
-                            >= Seconds::<ClockUnit>(persistent_keepalive as _))
+                            >= ClockDuration::seconds(persistent_keepalive as i64))
                     {
                         tracing::debug!("KEEPALIVE(PERSISTENT_KEEPALIVE)");
                         self.timer_tick(TimePersistentKeepalive);
