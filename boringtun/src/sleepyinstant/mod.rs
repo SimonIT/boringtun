@@ -16,8 +16,6 @@ mod windows;
 #[cfg(all(windows, feature = "std"))]
 use windows::now as clock_now;
 
-#[cfg(not(feature = "std"))]
-use alloc::boxed::Box;
 use core::error::Error;
 #[cfg(not(feature = "std"))]
 use lock_api::Mutex;
@@ -33,15 +31,17 @@ pub type ClockDuration = TimeDelta;
 
 #[cfg(not(feature = "std"))]
 static BORING_CLOCK: Lazy<
-    Mutex<RawMutex, Option<Box<dyn DateTimeAccess<Error = ()> + Send + Sync>>>,
+    Mutex<RawMutex, Option<&'static mut (dyn DateTimeAccess<Error = ()> + Send + Sync)>>,
 > = Lazy::new(|| Mutex::new(None));
 
 /// Register the wall clock used by [`Instant::now`] on targets without `std`.
 ///
 /// Must be called once at startup before any tunnel is used; every subsequent
-/// [`Instant::now`] call reads through this clock.
+/// [`Instant::now`] call reads through this clock. Since this takes a `'static` reference
+/// rather than owning the clock, callers without a heap allocator can obtain one via a
+/// statically allocated cell (e.g. `static_cell::StaticCell`) instead of `Box::leak`.
 #[cfg(not(feature = "std"))]
-pub fn set_wall_clock(clock: Box<dyn DateTimeAccess<Error = ()> + Send + Sync>) {
+pub fn set_wall_clock(clock: &'static mut (dyn DateTimeAccess<Error = ()> + Send + Sync)) {
     *BORING_CLOCK.lock() = Some(clock);
 }
 

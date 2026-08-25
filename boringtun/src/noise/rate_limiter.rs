@@ -2,6 +2,7 @@ use super::handshake::{b2s_hash, b2s_keyed_mac_16, b2s_keyed_mac_16_2, b2s_mac_2
 use crate::noise::handshake::{LABEL_COOKIE, LABEL_MAC1};
 use crate::noise::{HandshakeInit, HandshakeResponse, Packet, Tunn, TunnResult, WireGuardError};
 
+use core::convert::TryFrom;
 use core::net::IpAddr;
 use portable_atomic::{AtomicU64, Ordering};
 
@@ -140,7 +141,7 @@ impl RateLimiter {
 
         let cipher = XChaCha20Poly1305::new(&self.cookie_key);
 
-        let iv = Array::from_slice(nonce);
+        let iv = <&Array<_, _>>::try_from(&*nonce).unwrap();
 
         encrypted_cookie[..16].copy_from_slice(&cookie);
         let tag = cipher

@@ -6,13 +6,13 @@ use crate::noise::errors::WireGuardError;
 use crate::noise::session::Session;
 use crate::sleepyinstant::{ClockDuration, Instant};
 use crate::x25519;
-use aead::{Aead, Payload};
-use alloc::borrow::ToOwned;
+use aead::array::Array;
+use aead::AeadInOut;
 use blake2::digest::consts::{U16, U24};
 use blake2::digest::{FixedOutput, KeyInit};
 use blake2::{Blake2s256, Blake2sMac, Digest};
 use chacha20poly1305::XChaCha20Poly1305;
-use core::convert::TryInto;
+use core::convert::{TryFrom, TryInto};
 use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, CHACHA20_POLY1305};
 
 pub(crate) const LABEL_MAC1: &[u8; 8] = b"mac1----";
@@ -131,6 +131,10 @@ fn aead_chacha20_open(
     Ok(())
 }
 
+/// `aead_chacha20_open_inner` is only ever called during the handshake, on messages no larger
+/// than a single encrypted static public key (`KEY_LEN` bytes) plus the AEAD tag.
+const MAX_AEAD_OPEN_DATA_LEN: usize = KEY_LEN + 16;
+
 #[inline]
 fn aead_chacha20_open_inner(
     buffer: &mut [u8],
@@ -139,14 +143,16 @@ fn aead_chacha20_open_inner(
     data: &[u8],
     aad: &[u8],
 ) -> Result<(), ring::error::Unspecified> {
-    let key = LessSafeKey::new(UnboundKey::new(&CHACHA20_POLY1305, key).unwrap());
+    let key = LessSafeKey::new(UnboundKey::new(&CHACHA20_POLY1305, key)?);
 
-    let mut inner_buffer = data.to_owned();
+    let mut inner_buffer = [0u8; MAX_AEAD_OPEN_DATA_LEN];
+    let inner_buffer = &mut inner_buffer[..data.len()];
+    inner_buffer.copy_from_slice(data);
 
     let plaintext = key.open_in_place(
         Nonce::assume_unique_for_key(nonce),
         Aad::from(aad),
-        &mut inner_buffer,
+        inner_buffer,
     )?;
 
     buffer.copy_from_slice(plaintext);
@@ -656,18 +662,20 @@ impl Handshake {
         // msg.encrypted_cookie = XAEAD(HASH(LABEL_COOKIE || responder.static_public), msg.nonce, cookie, last_received_msg.mac1)
         let key = b2s_hash(LABEL_COOKIE, self.params.peer_static_public.as_bytes()); // TODO: pre-compute
 
-        let payload = Payload {
-            aad: &mac1[0..16],
-            msg: packet.encrypted_cookie,
-        };
-        let plaintext = XChaCha20Poly1305::new_from_slice(&key)
+        let (encrypted_cookie, tag) = packet.encrypted_cookie.split_at(16);
+        let mut cookie = [0u8; 16];
+        cookie.copy_from_slice(encrypted_cookie);
+
+        XChaCha20Poly1305::new_from_slice(&key)
             .unwrap()
-            .decrypt(packet.nonce.try_into().unwrap(), payload)
+            .decrypt_inout_detached(
+                <&Array<_, _>>::try_from(packet.nonce).unwrap(),
+                &mac1[0..16],
+                (&mut cookie[..]).into(),
+                <&Array<_, _>>::try_from(tag).unwrap(),
+            )
             .map_err(|_| WireGuardError::InvalidAeadTag)?;
 
-        let cookie = plaintext
-            .try_into()
-            .map_err(|_| WireGuardError::InvalidPacket)?;
         self.cookies.write_cookie = Some(cookie);
         Ok(())
     }
