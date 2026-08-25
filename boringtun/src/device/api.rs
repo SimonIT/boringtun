@@ -7,7 +7,7 @@ use super::{AllowedIP, Device, Error, SocketAddr};
 use crate::device::Action;
 use crate::serialization::KeyBytes;
 use crate::x25519;
-use hex::encode as encode_hex;
+use hex::encode_to_slice as encode_hex;
 use libc::*;
 use std::fs::{create_dir, remove_file};
 use std::io::{BufRead, BufReader, BufWriter, Write};
@@ -157,7 +157,10 @@ impl Device {
 fn api_get(writer: &mut BufWriter<&UnixStream>, d: &Device) -> i32 {
     // get command requires an empty line, but there is no reason to be religious about it
     if let Some(ref k) = d.key_pair {
-        writeln!(writer, "own_public_key={}", encode_hex(k.1.as_bytes()));
+        let mut output = [0u8; 64];
+        encode_hex(k.1.as_bytes(), &mut output);
+        let hex_string = ::core::str::from_utf8(&output).unwrap();
+        writeln!(writer, "own_public_key={}", hex_string);
     }
 
     if d.listen_port != 0 {
@@ -170,10 +173,17 @@ fn api_get(writer: &mut BufWriter<&UnixStream>, d: &Device) -> i32 {
 
     for (k, p) in d.peers.iter() {
         let p = p.lock();
-        writeln!(writer, "public_key={}", encode_hex(k.as_bytes()));
+
+        let mut output = [0u8; 64];
+        encode_hex(k.as_bytes(), &mut output);
+        let hex_string = ::core::str::from_utf8(&output).unwrap();
+        writeln!(writer, "public_key={}", hex_string);
 
         if let Some(ref key) = p.preshared_key() {
-            writeln!(writer, "preshared_key={}", encode_hex(key));
+            let mut output = [0u8; 64];
+            encode_hex(*key, &mut output);
+            let hex_string = ::core::str::from_utf8(&output).unwrap();
+            writeln!(writer, "preshared_key={}", hex_string);
         }
 
         if let Some(keepalive) = p.persistent_keepalive() {

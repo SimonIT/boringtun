@@ -10,7 +10,7 @@ use super::noise::{Tunn, TunnResult};
 use crate::x25519::{PublicKey, StaticSecret};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
-use hex::encode as encode_hex;
+use hex::encode_to_slice as encode_hex;
 use libc::{raise, SIGSEGV};
 use lock_api::Mutex;
 use parking_lot::RawMutex;
@@ -129,8 +129,9 @@ pub extern "C" fn x25519_key_to_base64(key: x25519_key) -> *const c_char {
 /// The memory has to be freed by calling `x25519_key_to_str_free`
 #[no_mangle]
 pub extern "C" fn x25519_key_to_hex(key: x25519_key) -> *const c_char {
-    let encoded_key = encode_hex(key.key);
-    CString::into_raw(CString::new(encoded_key).unwrap())
+    let mut encoded_key = [0u8; 64];
+    hex::encode_to_slice(key.key, &mut encoded_key).expect("buffer is exactly sized for the input");
+    CString::into_raw(CString::new(&encoded_key[..]).unwrap())
 }
 
 /// Frees memory of the string given by `x25519_key_to_hex` or `x25519_key_to_base64`
