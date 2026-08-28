@@ -188,8 +188,9 @@ impl TimeStamper {
         const TAI64_BASE: u64 = (1u64 << 62) + 37;
         let mut ext_stamp = [0u8; 12];
         let stamp = Instant::now().duration_since(self.instant_at_start) + self.duration_at_start;
-        ext_stamp[0..8].copy_from_slice(&(stamp.num_seconds() as u64 + TAI64_BASE).to_be_bytes());
-        ext_stamp[8..12].copy_from_slice(&(stamp.subsec_nanos() as u32).to_be_bytes());
+        let whole_secs = ClockDuration::from_secs(stamp.as_secs());
+        ext_stamp[0..8].copy_from_slice(&(stamp.as_secs() + TAI64_BASE).to_be_bytes());
+        ext_stamp[8..12].copy_from_slice(&((stamp - whole_secs).as_nanos() as u32).to_be_bytes());
         ext_stamp
     }
 }
@@ -634,7 +635,7 @@ impl Handshake {
         let temp3 = b2s_hmac2(&temp1, &temp2, &[0x02]);
 
         let rtt_time = Instant::now().duration_since(state.time_sent);
-        self.last_rtt = Some(rtt_time.num_milliseconds() as u32);
+        self.last_rtt = Some(rtt_time.as_millis() as u32);
 
         if is_previous {
             self.previous = HandshakeState::None;

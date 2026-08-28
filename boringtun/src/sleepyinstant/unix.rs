@@ -1,5 +1,4 @@
-use crate::sleepyinstant::ClockDuration;
-use chrono::TimeDelta;
+use crate::sleepyinstant::{ClockDuration, ClockInstant};
 use nix::time::{clock_gettime, ClockId};
 
 #[cfg(any(
@@ -19,8 +18,10 @@ const CLOCK_ID: ClockId = ClockId::CLOCK_MONOTONIC;
 )))]
 const CLOCK_ID: ClockId = ClockId::CLOCK_BOOTTIME;
 
-pub(super) fn now() -> ClockDuration {
+pub(super) fn now() -> ClockInstant {
     // std::time::Instant unwraps as well, so feel safe doing so here
     let t = clock_gettime(CLOCK_ID).unwrap();
-    TimeDelta::new(t.tv_sec(), t.tv_nsec() as u32).unwrap()
+    let elapsed =
+        ClockDuration::from_secs(t.tv_sec() as u64) + ClockDuration::from_ticks(t.tv_nsec() as u64);
+    ClockInstant::from_ticks(elapsed.as_ticks())
 }

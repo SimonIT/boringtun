@@ -6,6 +6,7 @@ use super::drop_privileges::get_saved_ids;
 use super::{AllowedIP, Device, Error, SocketAddr};
 use crate::device::Action;
 use crate::serialization::KeyBytes;
+use crate::sleepyinstant::ClockDuration;
 use crate::x25519;
 use hex::encode_to_slice as encode_hex;
 use libc::*;
@@ -199,8 +200,13 @@ fn api_get(writer: &mut BufWriter<&UnixStream>, d: &Device) -> i32 {
         }
 
         if let Some(time) = p.time_since_last_handshake() {
-            writeln!(writer, "last_handshake_time_sec={}", time.num_seconds());
-            writeln!(writer, "last_handshake_time_nsec={}", time.subsec_nanos());
+            let whole_secs = ClockDuration::from_secs(time.as_secs());
+            writeln!(writer, "last_handshake_time_sec={}", time.as_secs());
+            writeln!(
+                writer,
+                "last_handshake_time_nsec={}",
+                (time - whole_secs).as_nanos()
+            );
         }
 
         let (_, tx_bytes, rx_bytes, ..) = p.tunnel.stats();

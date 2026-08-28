@@ -2,10 +2,6 @@
 //! Attempts to provide the same functionality as std::time::Instant, except it
 //! uses a timer which accounts for time when the system is asleep
 
-#[cfg(not(feature = "std"))]
-use chrono::NaiveDateTime;
-use chrono::TimeDelta;
-
 #[cfg(all(unix, feature = "std"))]
 mod unix;
 #[cfg(all(unix, feature = "std"))]
@@ -16,23 +12,39 @@ mod windows;
 #[cfg(all(windows, feature = "std"))]
 use windows::now as clock_now;
 
-use core::error::Error;
 #[cfg(not(feature = "std"))]
 use lock_api::Mutex;
 #[cfg(not(feature = "std"))]
 use once_cell::sync::Lazy;
-use rtcc::DateTimeAccess;
 
 #[cfg(not(feature = "std"))]
 type RawMutex = spin::Mutex<()>;
 
+/// [`ClockDuration`] and [`ClockInstant`] tick once per nanosecond: `NOM / DENOM` seconds per
+/// tick, i.e. `1 / 1_000_000_000`. Named once here so the tick rate has a single source of
+/// truth instead of a literal repeated at every use.
+const NOM: u64 = 1;
+const DENOM: u64 = 1_000_000_000;
+
 /// The unit used for measuring spans of time between two [`Instant`]s.
-pub type ClockDuration = TimeDelta;
+pub type ClockDuration = fugit::Duration<u64, NOM, DENOM>;
+
+/// A monotonic point in time, counted in ticks from whatever epoch the clock source uses.
+type ClockInstant = fugit::Instant<u64, NOM, DENOM, fugit::kind::Monotonic>;
+
+/// A source of time for [`Instant::now`] on targets without `std`.
+///
+/// Implementations report the time elapsed since a fixed epoch, e.g. a hardware RTC's reading
+/// relative to the Unix epoch, or a free-running timer/counter since boot. [`Instant`] only
+/// requires that successive readings never go backwards.
+#[cfg(not(feature = "std"))]
+pub trait WallClock {
+    fn now(&mut self) -> ClockDuration;
+}
 
 #[cfg(not(feature = "std"))]
-static BORING_CLOCK: Lazy<
-    Mutex<RawMutex, Option<&'static mut (dyn DateTimeAccess<Error = ()> + Send + Sync)>>,
-> = Lazy::new(|| Mutex::new(None));
+static BORING_CLOCK: Lazy<Mutex<RawMutex, Option<&'static mut (dyn WallClock + Send + Sync)>>> =
+    Lazy::new(|| Mutex::new(None));
 
 /// Register the wall clock used by [`Instant::now`] on targets without `std`.
 ///
@@ -41,18 +53,17 @@ static BORING_CLOCK: Lazy<
 /// rather than owning the clock, callers without a heap allocator can obtain one via a
 /// statically allocated cell (e.g. `static_cell::StaticCell`) instead of `Box::leak`.
 #[cfg(not(feature = "std"))]
-pub fn set_wall_clock(clock: &'static mut (dyn DateTimeAccess<Error = ()> + Send + Sync)) {
+pub fn set_wall_clock(clock: &'static mut (dyn WallClock + Send + Sync)) {
     *BORING_CLOCK.lock() = Some(clock);
 }
 
 #[cfg(not(feature = "std"))]
-fn clock_now() -> ClockDuration {
+fn clock_now() -> ClockInstant {
     let mut clock = BORING_CLOCK.lock();
     let clock = clock
         .as_mut()
         .expect("no wall clock registered; call sleepyinstant::set_wall_clock() at startup");
-    let now = clock.datetime().unwrap().and_utc();
-    TimeDelta::new(now.timestamp(), now.timestamp_subsec_nanos()).unwrap()
+    ClockInstant::from_ticks(clock.now().as_ticks())
 }
 
 /// A measurement of a monotonically nondecreasing clock.
@@ -69,7 +80,7 @@ fn clock_now() -> ClockDuration {
 /// backwards.
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Clone, Copy, Debug)]
-pub struct Instant(ClockDuration);
+pub struct Instant(ClockInstant);
 
 impl Instant {
     /// Returns an instant corresponding to "now".
@@ -77,34 +88,12 @@ impl Instant {
         Self(clock_now())
     }
 
-    fn checked_duration_since(&self, earlier: Instant) -> Option<ClockDuration> {
-        const NANOSECOND: i32 = 1_000_000_000;
-        let self_nanos = self.0.subsec_nanos();
-        let earlier_nanos = earlier.0.subsec_nanos();
-        let (secs, nanos) = if self_nanos < earlier_nanos {
-            (
-                self.0.num_seconds() - earlier.0.num_seconds() - 1,
-                self_nanos - earlier_nanos + NANOSECOND,
-            )
-        } else {
-            (
-                self.0.num_seconds() - earlier.0.num_seconds(),
-                self_nanos - earlier_nanos,
-            )
-        };
-
-        if secs < 0 {
-            None
-        } else {
-            Some(TimeDelta::new(secs, nanos as u32).unwrap())
-        }
-    }
-
     /// Returns the amount of time elapsed from another instant to this one,
     /// or zero duration if that instant is later than this one.
     pub fn duration_since(&self, earlier: Instant) -> ClockDuration {
-        self.checked_duration_since(earlier)
-            .unwrap_or(TimeDelta::zero())
+        self.0
+            .checked_duration_since(earlier.0)
+            .unwrap_or(ClockDuration::from_ticks(0))
     }
 
     /// Returns the amount of time elapsed since this instant was created.
@@ -118,7 +107,7 @@ impl Instant {
     /// system boot for the unix/windows monotonic clocks); it is not guaranteed to relate to
     /// the Unix epoch except on targets whose wall clock backs [`Instant`] directly.
     pub fn duration_since_epoch(&self) -> ClockDuration {
-        self.0
+        self.0.duration_since_epoch()
     }
 }
 
@@ -127,13 +116,12 @@ mod tests {
     extern crate std;
 
     use super::*;
-    use chrono::TimeDelta;
 
     #[test]
     fn time_increments_after_sleep() {
-        let sleep_time = TimeDelta::milliseconds(10);
+        let sleep_time = ClockDuration::from_millis(10);
         let start = Instant::now();
-        std::thread::sleep(sleep_time.to_std().unwrap());
+        std::thread::sleep(sleep_time.into());
         assert!(start.elapsed() >= sleep_time);
     }
 }

@@ -130,7 +130,7 @@ pub extern "C" fn x25519_key_to_base64(key: x25519_key) -> *const c_char {
 #[no_mangle]
 pub extern "C" fn x25519_key_to_hex(key: x25519_key) -> *const c_char {
     let mut encoded_key = [0u8; 64];
-    hex::encode_to_slice(key.key, &mut encoded_key).expect("buffer is exactly sized for the input");
+    encode_hex(key.key, &mut encoded_key).expect("buffer is exactly sized for the input");
     CString::into_raw(CString::new(&encoded_key[..]).unwrap())
 }
 
@@ -390,7 +390,7 @@ pub unsafe extern "C" fn wireguard_stats(tunnel: *const Mutex<RawMutex, Tunn>) -
     let tunnel = tunnel.as_ref().unwrap().lock();
     let (time, tx_bytes, rx_bytes, estimated_loss, estimated_rtt) = tunnel.stats();
     stats {
-        time_since_last_handshake: time.map(|t| t.num_seconds()).unwrap_or(-1),
+        time_since_last_handshake: time.map(|t| t.as_secs() as i64).unwrap_or(-1),
         tx_bytes,
         rx_bytes,
         estimated_loss,
